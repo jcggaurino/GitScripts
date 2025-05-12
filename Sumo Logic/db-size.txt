@@ -1,0 +1,40 @@
+=====DB Size
+[Yesterday 6:18 PM] Mark Anthony Roma Cruz
+I'm not sure if it matters but the size of their TST is 3.64 TB. 
+ like 1
+
+[Yesterday 6:19 PM] Mark Anthony Roma Cruz
+_collector= saas.aws.mt.*.app.m3ce.* and VICTAULIC_TST
+| "VICTAULIC_TST" as tenant
+| lookup sizeinGB from /shared/m3ce/databases on tenant=tenant
+| where !(isNull(sizeinGB))
+| (sizeinGB/1000) as size | format( "%.2f TB",size) as size
+| first(size)
+
+//For DB Size by Tenant, check Dashboard "MT DB Size By Tenant"
+//Input tenant_id and specific DB Name. Search for the last 24hrs for first two time range. 
+//Bottom time range can be for the last 30days to see history of DB size growth.
+
+
+
+//Or below which should be specific to 2nd or 4th Saturdays
+(_source=dbsize_mt)
+| where tenant_id = "YNHH_PP1" and product = "bi"
+| if (isBlank(size), "0", size) as size
+| num(size) as size
+| (size/1000/1000) as sizeinTB
+| sum(sizeinTB) as sizeinTB group by tenant_id,product,environment,region,database |  total sizeinTB as _totalTB | sort by sizeinTB
+
+
+
+=====Table Size
+(((_source="tablesize.mt" and _collector="saas.aws.mt.prd.us-east-1.app.infra.dbsizepertenant")))
+| parse "time:*,class:*,instance:*,servername:*,tenant:*,product:*,env:*,region:*,account:*,metric:*,envtype:*,datapoint:*,tablename:*,rowcount:*,database:*" as time,class,instance,servername,tenant,product,env,region,account,metric,envType,SizeKB,tablename,rowcount,database
+//Change below values
+| where product = "mscm" | where database = "SLHS_PRD_MSC_Ten_0" | where tablename = "dbo.DELIVERY_EVENT_IMAGE"
+| if (isBlank(RowCount), "0", RowCount) as RowCount
+| num(RowCount) as RowCount
+| if (isBlank(SizeKB), "0", SizeKB) as SizeKB
+| num(SizeKB) as SizeKB
+| if (isBlank(product), "NotTagged", product) as Product
+//|count as count by product

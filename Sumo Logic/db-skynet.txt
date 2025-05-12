@@ -1,0 +1,46 @@
+From Brian Justice on Subject "Re: Killed Blocking SPID(S)"
+
+Jagadeesh, 
+
+Please note the following.  
+
+Firstly, if you’re looking for Skynet information please use the following query for the Skynet log (I noticed you are querying the WhoIsActive log below):
+
+(_source="db-skynet" and _collector=saas.aws.mt.prd.app.sce.db.SCE05*)
+| parse "*, [session_id] = * , [start_time] = * , [duration] = * , [login_name] = * , [wait_info] = * , [blocking_session_id] = * , [status] = * , [open_tran_count] = * , [host_name] = * , [database_name] = * , [program_name] = * , [sql_text] = * , [sql_command] = * , [locks] = * , [killed] = * , [criteria] = * , [TempDB(sec)] = * , [LongRunningDuration(min)] = * , [BlockingCount] = * , [BlockingDuration] = *" as time, session_id, start_time, duration, login_name, wait_info, blocking_session_id, status, open_tran_count, host_name, database_name, program_name, sql_text, sql_command, locks, killed, criteria, TempDBSec, LongRunningDurationMin, BlockingCount, BlockingDuration
+
+
+Also ensure that your time range is correct and is looking at the last 4 days. 
+I’m sure that you have already done this, but for completeness I wanted to include this info for any future issues. 
+
+For the WhoIsActive log, please use the following query and make adjustments:
+
+(_collector=saas.aws.mt.*.app.sce.db.sce05*)
+and _source="db-whoisactive" 
+| json auto
+| where session_id = "1054"
+| fields collection_time, session_id, sql_text, sql_command, login_name, CPU, tempdb_allocations, tempdb_current, reads, writes, physical_reads, used_memory, status, open_tran_count, host_name, database_name, program_name, additional_info, start_time, login_time, _raw
+
+After some investigation, it appears that this particular issue was caused by a query under an “\admin” domain account (a DBA manual run from SSMS)—which is excluded from sumo ingestion. This appears to be from a support ticket task to run a query on this tenant. Because it caused blocking it was killed. I do not believe this was an application issue; which is what we are trying to focus on capturing within sumo. 
+
+=====
+(_source="db-skynet" and _collector=*prd*sl* and _sourcehost=*** and region=*)
+| parse "*, [session_id] = * , [start_time] = * , [duration] = * , [login_name] = * , [wait_info] = * , [blocking_session_id] = * , [status] = * , [open_tran_count] = * , [host_name] = * , [database_name] = * , [program_name] = * , [sql_text] = * , [sql_command] = * , [locks] = * , [killed] = * , [criteria] = * , [TempDB(sec)] = * , [LongRunningDuration(min)] = * , [BlockingCount] = * , [BlockingDuration] = *" as time, session_id, start_time, duration, login_name, wait_info, blocking_session_id, status, open_tran_count, host_name, database_name, program_name, sql_text, sql_command, locks, killed, criteria, TempDBSec, LongRunningDurationMin, BlockingCount, BlockingDuration
+| where criteria = "ExcessReads" | where database_name != "master" 
+
+
+=====
+--Skynet
+
+(_source="db-skynet" and _collector=*prd*** and _sourcehost=**sl62** and region=*)
+| parse "*, [session_id] = * , [start_time] = * , [duration] = * , [login_name] = * , [wait_info] = * , [blocking_session_id] = * , [status] = * , [open_tran_count] = * , [host_name] = * , [database_name] = * , [program_name] = * , [sql_text] = * , [sql_command] = * , [locks] = * , [killed] = * , [criteria] = * , [TempDB(sec)] = * , [LongRunningDuration(min)] = * , [BlockingCount] = * , [BlockingDuration] = *" as time, session_id, start_time, duration, login_name, wait_info, blocking_session_id, status, open_tran_count, host_name, database_name, program_name, sql_text, sql_command, locks, killed, criteria, TempDBSec, LongRunningDurationMin, BlockingCount, BlockingDuration
+
+=====
+(_source="db-skynet" and _collector=saas.aws.mt.prd.app.*sl.db.*)
+| parse "*, [session_id] = * , [start_time] = * , [duration] = * , [login_name] = * , [wait_info] = * , [blocking_session_id] = * , [status] = * , [open_tran_count] = * , [host_name] = * , [database_name] = * , [program_name] = * , [sql_text] = * , [sql_command] = * , [locks] = * , [killed] = * , [criteria] = * , [TempDB(sec)] = * , [LongRunningDuration(min)] = * , [BlockingCount] = * , [BlockingDuration] = *" as time, session_id, start_time, duration, login_name, wait_info, blocking_session_id, status, open_tran_count, host_name, database_name, program_name, sql_text, sql_command, locks, killed, criteria, TempDBSec, LongRunningDurationMin, BlockingCount, BlockingDuration
+
+=====
+(_source="db-skynet" and _collector=*prd*sl* and _sourcehost=*** and region=*)
+| json auto | parse "[criteria] =  * , [sql_text] =  * " as criteria,sql_text
+| where criteria = "ExcessReads" | where database_name != "master" //| number(format("%.2f", number(GBs_read1)/number(DB_Size_GB1))) as times_read | format("%.2f", (number(DB_Size_GB1))) as DB_Size_GB | format("%.2f", (number(GBs_read1))) as GBs_read | values(sql_text) by _sourceHost, collection_time, database_name, session_id , DB_Size_GB, GBs_read, times_read, killed, host_name, query_count | order by times_read desc
+

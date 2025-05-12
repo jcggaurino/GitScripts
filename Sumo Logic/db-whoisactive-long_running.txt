@@ -1,0 +1,5 @@
+(_source="db-whoisactive" and _collector=*int*** and _sourcehost=**ssmgfstg01** and region=*)| json auto
+| where database_name != "master"
+| parse "\"dd hh:mm:ss.mss\":\"* *:*:*.*\"" as dd,hh,mm,ss,mss
+| (num(dd)*24 + num(hh)) as hours
+| max(hours) as hours by _collector,database_name,sql_text | top 10 _collector,database_name,sql_text by hours

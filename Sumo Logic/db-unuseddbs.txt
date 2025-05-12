@@ -1,0 +1,3 @@
+[Yesterday 8:02 PM] Bhanu Mahesh Kakumanu
+_source="db-unuseddbs" and _collector = saas.aws.mt.*.app.*.db.*
+ 

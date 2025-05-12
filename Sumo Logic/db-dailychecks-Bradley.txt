@@ -1,0 +1,288 @@
+(
+    _collector = saas.aws.mt.prd*.app.sl.db.* OR
+    _collector = saas.aws.mt.int.app.sl.db.* OR
+    _collector = saas.aws.mt.prd*.app.ft.db.* OR
+    _collector = saas.aws.mt.int.app.ft.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+/* parse the ClusterName from the ServerName JSON field */
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w" nodrop
+/* parse the Account from the collector name */
+| parse regex field=_collector "saas\.aws\.mt\.(?<Account>[^\.]+)\.app" nodrop
+/* guess the Region based on the time the daily check was logged (assuming server in UTC) */
+| formatDate(_messagetime, "HH", "UTC") as CollectionHourUTC
+| if (CollectionHourUTC = 10, "us-east-1",
+  if (CollectionHourUTC = 04, "eu-central-1",
+  if (CollectionHourUTC = 05, "eu-west-2",
+  if (CollectionHourUTC = 18, "ap-southeast-2",
+  if (CollectionHourUTC = 20, "ap-northeast-1",
+  null))))) AS Region
+/* collect the backup date for BackupOnDisk */
+| if(
+    (
+        CheckName = "BackupOnDisk" 
+        AND if(!isNull(PhysicalFileName), PhysicalFileName matches /.+(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).+/, false)
+    ), 
+    formatDate(parseDate(replace(PhysicalFileName, /.+(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).+/, "$1-$2-$3 $4:$5:$6"), "yyyy-MM-dd HH:mm:ss", "UTC"), "yyyy-MM-dd HH:mm:ss", "UTC")
+    , null
+) as BackupStartDate
+| where 
+    1=1
+    AND !(ClusterName in("slutil02","slutil03","slutil04"))
+    //Safe:1
+    AND !(Safe = 1)
+    ////AGHealth
+    //(CheckName = "AGHealth")
+    ////AGLog
+    //AND !(CheckName = "AGLog")
+    //AGProperties //***handles in SQL***
+    AND !(CheckName = "AGProperties")
+    ////AutoClose
+    //AND !(CheckName = "AutoClose")
+    ////AutoCreateStats
+    //AND !(CheckName = "AutoCreateStats")
+    ////AutoGrowth
+    //AND !(CheckName = "AutoGrowth")
+    ////AutoShrink
+    //AND !(CheckName = "AutoShrink")
+    ////AutoUpdateStats
+    //AND !(CheckName = "AutoUpdateStats")
+    //BackupHistory
+    //AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 58) //should be 60, 58 is suffice?
+    AND !(CheckName = "BackupHistory")
+    //BackupOnDisk
+    AND !(
+        CheckName = "BackupOnDisk" AND (
+            /* we know Add2AG removes backups when finished*/
+            if(!isNull(PhysicalFileName), PhysicalFileName matches /.+_Add2AG\.(bak|trn)/, false) OR 
+            /* we know RemoveTenant.ps1 removes backups when finished*/
+            if(!isNull(PhysicalFileName), PhysicalFileName matches /.+_FINAL_OFFLINE_BACK.*\.bak/, false) OR 
+            /* we know dba_Cleanup cleans up files 6 days old, so we don't care about those */
+            if(!isNull(BackupStartDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss", "UTC") -  parseDate(BackupStartDate, "yyyy-MM-dd HH:mm:ss", "UTC") > 518400000 /* 6 days, in ms */, false)
+        )
+    )
+    //ClusterHealth //***done in SQL***
+    AND !(CheckName = "ClusterHealth")
+    ////Collation
+    //AND !(CheckName = "Collation")
+    //CompatibilityLevel
+    AND !(CheckName = "CompatibilityLevel" AND ClusterName in("sl05","sl11","sl13","sl14","sl15"))
+    //DatabaseGrowth
+    //AND !(CheckName = "DatabaseGrowth" AND DatabaseName in("CODBALogs"))
+    AND !(CheckName = "DatabaseGrowth")
+    ////DatabaseLimit
+    AND !(
+        CheckName = "DatabaseLimit" AND 
+        (
+            ClusterName in(
+                "ft11",
+                "ft12",
+                "ft16",
+                "ft17",
+                "ft18",
+                "ft19",
+                "ft20",
+                "ft21",
+                "ft22",
+                "ft23",
+                "ft24",
+                "ft25",
+                "ft27",
+                "ft28",
+                "ft30",
+                "sl01",
+                "sl02",
+                "sl04",
+                "sl06",
+                "sl07",
+                "sl30",
+                "sl33",
+                "sl34",
+                "sl35",
+                "sl37",
+                "sl38",
+                "sl45",
+                "sl42",
+                "sl48",
+                "sl49",
+                "sl54",
+                "sl55",
+                "sl59",
+                "sl61",
+                "sl62",
+                "sl63",
+                "slstg01"
+            )
+            OR
+            (
+                if(!isNull(DatabaseCount), ClusterName = "sl20" AND DatabaseCount = 79, false)
+            )
+        )
+    )
+    ////DatabaseNotInAOAG
+    //AND !(CheckName = "DatabaseNotInAOAG")
+    //DBCC
+    AND !(
+        CheckName = "DBCC" AND (
+            //If these clusters, we know DBCC could take up to 3 days to rotate
+            ClusterName in("sl01") AND
+            if(!isNull(LastGoodCHECKDBDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss") - parseDate(LastGoodCHECKDBDate, "yyyy-MM-dd'T'HH:mm:ss", "UTC") < 259200000 /* 3 days, in ms */, false)
+        )
+    )
+    ////DBMail
+    //AND !(CheckName = "DBMail")
+    ////DBOwner
+    //AND !(CheckName = "DBOwner")
+    ////DBState
+    //AND !(CheckName = "DBState")
+    //DisabledAlerts
+    AND !(
+        CheckName = "DisabledAlerts" AND ObjectName in(
+            "Enable_Syteline_DB_Owner"
+        )
+    )
+    //DisabledJobs
+    AND !(
+        CheckName = "DisabledJobs" AND 
+        (
+            ObjectName in 
+            (
+                "dba_Collect_Connection_Information",
+                "dba_Cleanup_IOBOX",
+                "dba_QueryStoreConfiguration"
+            ) OR
+            ( /* only show me when its disabled */
+                ObjectName = "dba_SQLAGManualAuto" AND 
+                if(isNull(EnabledCurrent),true,EnabledCurrent = 1)
+            )  OR 
+            ( /* migration clusters have Skynet disabled, as requested by Upgrade team */
+                ObjectName = "dba_Skynet" AND
+                ClusterName in("slmig01","slmig02","slmig03") AND
+                if(isNull(EnabledCurrent), false, EnabledCurrent = 0) AND 
+                if(isNull(EnabledExpected), false, EnabledExpected = 1)
+            ) OR
+            ( /* dba_AddJackDBDatasourcesToRole is now disabled everywhere? (now also in prd-ncr) */
+                ObjectName = "dba_AddJackDBDatasourcesToRole" AND
+                //!(Account = "prd-ncr") AND
+                if(isNull(EnabledCurrent), false, EnabledCurrent = 0) AND 
+                if(isNull(EnabledExpected), false, EnabledExpected = 1)
+            )
+        )
+    )
+    ////DisabledOperators
+    //AND !(CheckName = "DisabledOperators")
+    ////ExtraSAUser
+    //AND !(CheckName = "ExtraSAUser")
+    ////FileGroup
+    //AND !(CheckName = "FileGroup")
+    ////FileLocation
+    //AND !(CheckName = "FileLocation")
+    //JobHistory //***handled by SQL***
+    AND !(CheckName = "JobHistory")
+    ////JobOwner
+    //AND !(CheckName = "JobOwner")
+    ////LoginLog
+    //AND !(CheckName = "LoginLog")
+    ////MultiUser
+    //AND !(CheckName = "MultiUser")
+    //Operators
+    AND !(
+        CheckName = "Operators" AND
+        (
+            (
+                ServerName matches "sl*" AND 
+                (
+                    (
+                        OperatorName = "Alert Operator" AND 
+                        toLowerCase(OperatorEmail) = "sl@inforcloud.pagerduty.com"
+                    ) OR
+                    (
+                        OperatorName = "DBA Group" AND 
+                        toLowerCase(OperatorEmail) = "dlg-erpsl-hosting-dba@infor.com"
+                    )
+                )
+            )
+            OR (
+                ServerName matches "ft*" AND 
+                (
+                    (
+                        OperatorName = "Alert Operator" AND 
+                        toLowerCase(OperatorEmail) = "ft@inforcloud.pagerduty.com"
+                    ) OR
+                    (
+                        OperatorName = "DBA Group" AND 
+                        toLowerCase(OperatorEmail) = "dlg-ft-hosting-dba@infor.com"
+                    )
+                )
+            )
+        )
+    )
+    //OrphanedUsers
+    AND !(CheckName = "OrphanedUsers")
+    //OversizedDatabase
+    AND !(CheckName = "OversizedDatabase")
+    ////PageVerify
+    //AND !(CheckName = "PageVerify")
+    ////RecoveryModel
+    //AND !(CheckName = "RecoveryModel")
+    ////SAUser
+    //AND !(CheckName = "SAUser")
+    //Snapshots
+    AND !(
+        CheckName = "Snapshots" AND
+        (
+            //if we're looking at the day the snapshot was taken, we already know snapshots will not be the expected total--
+            // look for anticipated values for Frankfurt (earliest region--400 UTC [4 hours of snapshots]) to at least assure we're getting snapshots for that day
+            if(
+                SnapshotDate matches concat(formatDate(_messagetime, "yyyy-MM-dd"),"*"),
+                //formatDate(now(), "EEEE") = SnapshotWeekDay,
+                (
+                    //(SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+                    (SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 2) OR
+                    (SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 20)
+                ),
+                (
+                    (SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= if(SnapshotWeekDay = "Sunday",1,2)) OR
+                    (SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= if(SnapshotWeekDay = "Sunday",4,6)) OR
+                    (SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 115) //should be 120, 115 should suffice?
+                )
+            ) //end if
+        )
+    )
+    //TimeOffset
+    AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| (
+  if (CheckName = "CompatibilityLevel", concat("{\"DatabaseName\":\"", DatabaseName, "\",\"CLDatabase\":", CLDatabase, ",\"CLServer\":", CLServer, ",\"CommandSQL\":\"", CommandSQL, "\"}"), 
+  if (CheckName = "DatabaseLimit", concat("{\"DatabaseCount\":", DatabaseCount, ",\"DatabaseMax\":", DatabaseMax, "}"), 
+  if (CheckName = "DatabaseNotInAOAG", concat("{\"DatabaseName\":\"", DatabaseName, "\",\"CommandCMD\":\"", CommandCMD, "\"}"), 
+  if (CheckName = "DBCC", concat("{\"DatabaseName\":\"", DatabaseName, "\",\"LastGoodCHECKDBDate\":\"", LastGoodCHECKDBDate, "\",\"CommandSQL\":\"", CommandSQL, "\"}"), 
+  if (CheckName = "DBState", concat("{\"DatabaseName\":\"", DatabaseName, "\",\"StateDesc\":\"", StateDesc, "\"}"), 
+  replace(_raw, /\{\"LogID\":\d+,\"CollectionDate\":\"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\",\"ServerName\":\"\w+-\w\",\"CheckName\":\"\w+\",\"BatchStartDate\":\"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\",\"BatchEndDate\":\"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\",\"Safe\":[0-1],(.+)/, "{$1")
+    )))))
+) AS warning
+/* Remove CMW messages */
+/*
+| where 
+    !(
+        Region = "us-east-1" AND 
+        (
+            CheckName = "DisabledOperators" AND 
+            (
+                ObjectName in("DBA Group","Alert Operator")) AND 
+                if(isNull(EnabledExpected), false, EnabledExpected = 1) AND 
+                if(isNull(EnabledCurrent), false, EnabledCurrent = 0)
+            ) AND 
+        (
+            CheckName = "DisabledJobs" AND 
+            (
+                ObjectName in("dba_SyncSQLAgent","dba_SQLAGManualAuto","dba_SyncSQLLogins","dba_SQLStart")) AND 
+                if(isNull(EnabledExpected), false, EnabledExpected = 1) AND 
+                if(isNull(EnabledCurrent), false, EnabledCurrent = 0)
+            )
+    )
+*/
+| fields ServerName, CheckName, warning
+| sort _messageTime asc
+| count by CheckName
+| sort by _count desc

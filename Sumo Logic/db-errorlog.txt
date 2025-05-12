@@ -1,0 +1,27 @@
+*****Buffer Latch
+(_collector=*.db.* and _sourcename="E:\system01\log\ERRORLOG" "A time-out occurred while waiting for buffer latch")
+
+*****
+//Count like string in errorlog
+(_collector=saas.aws.mt.prd.app.cpqcf.db.*)(_sourceCategory="database")((((((_source="db-errorlog" AND "Dump")
+OR "Timeout waiting for external dump")
+OR "Stack Signature for the dump")
+OR "Short Stack Dump")
+OR "Login Failed" AND !"LMIOBOX" AND !"FSMIOBOX" AND !"TAMIOBOX" AND !"jackdb")
+OR "BEGIN STACK DUMP")
+OR "Dump thread" | where region="us-east-1" | count by _collector | sort by _count
+
+*****
+_collector = saas.aws.mt.*.app.*.db.* 				
+and (_sourcehost = sl07* or _sourcehost = sl08*)
+and _source = db-errorlog 	
+//and "A time-out occurred while waiting for buffer latch"
+| parse field = _raw "* *   *" as LogDate, Source, LogText
+//| parse  regex "(?<LogDate>'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d{2}) (?<Source>[^ ]+)     (?<LogText>.+)"
+//| parse regex "(?<LogDate>'\d{4}-\d{2}-\d{2})"
+
+//| limit 10
+
+*****
+(_collector=saas.aws.mt.*.app.*.db.*)(_sourceCategory="database")((_source="db-errorlog" AND "Dump")
+OR "Error: 19432, Severity: 16, State: 0") | where region="us-east-1" | count by host | sort by _count

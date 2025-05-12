@@ -1,0 +1,11 @@
+Get count of queries before/after time period - Just update period via Sumo Logic
+
+((_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*ssmgf04* and region=*) AND !"DBCC" AND !"BACKUP") | json auto
+| where database_name != "master" 
+| where sql_text <> "NULL" 
+| where database_name != "dba" 
+| where database_name != "CODBAProcedures" 
+| where database_name != "CODBALogs" 
+| where database_name != "msdb"
+|max(cpu) by sql_text,database_name,session_id 
+| top 10 database_name,sql_text,session_id by _max

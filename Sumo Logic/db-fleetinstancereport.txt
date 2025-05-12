@@ -1,0 +1,12 @@
+_source=db-fleetinstancereport
+| json auto 
+| fields App
+
+=====
+(_source="db-fleetinstancereport" and _collector=saas.aws.mt.*.app.*.db.*)
+//| parse "[App] = *, [region] = *, [listener] = *" as App, region, listener
+| fields App,Region,Listener,DatabaseCount,DataSizeGB,VersionFullName,Collation,InstanceTypeSize,Account,Hostname,Primary
+//| where Listener = "ionce13-lsnr"
+| where Primary = Hostname
+//| where _primary = _hostname
+

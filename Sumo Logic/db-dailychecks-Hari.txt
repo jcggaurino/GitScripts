@@ -1,0 +1,144 @@
+(
+    _collector = saas.aws.mt.prd*.app.sl.db.* OR
+    _collector = saas.aws.mt.int.app.sl.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where
+    1=1
+    ////AGHealth
+    ////MissingIndex
+    AND !(CheckName = "AGHealth")
+    AND !(CheckName = "MissingIndex")
+    AND !(CheckName = "WindowsActivation" AND (Activated = "True"))
+    //AND !(CheckName = "DisabledJobs" AND (ObjectName = "TAMdba_QS_Sumo"))
+    AND !(CheckName = "ExtraneousUsers")
+    ////AGLog
+    AND !(CheckName = "AGLog")
+    //AGProperties
+    AND !(CheckName = "AGProperties" AND (AvailabilityMode <> "SYNCHRONOUS_COMMIT" OR FailoverMode <> "Automatic"))
+    ////AutoClose
+    //AND !(CheckName = "AutoClose")
+    ////AutoCreateStats
+    //AND !(CheckName = "AutoCreateStats")
+    ////AutoGrowth
+    AND !(CheckName = "AutoGrowth")
+    //AND !(CheckName = "MissingIndex")
+    ////AutoShrink
+    //AND !(CheckName = "AutoShrink")
+    ////AutoUpdateStats
+    //AND !(CheckName = "AutoUpdateStats")
+    //BackupHistory
+    //AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 50)
+    AND !(CheckName = "BackupHistory")
+    //BackupOnDisk
+    AND !(
+        CheckName = "BackupOnDisk" AND (
+            /* we know Add2AG removes backups when finished*/
+            if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_Add2AG\.(bak|trn)/ OR
+            /* we know RemoveTenant.ps1 removes backups when finished*/
+            if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_FINAL_OFFLINE_BACK.*\.bak/ OR
+            /* we know dba_Cleanup cleans up files 6 days old, so we don't care about those */
+            if(!isNull(BackupStartDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss.SSS") -  parseDate(BackupStartDate, "yyyy-MM-dd HH:mm:ss") > 518400000 /* 6 days, in ms */, false)
+        )
+    )
+     AND !(CheckName = "OverdueProcesses")
+    //ClusterHealth //***done in SQL***
+    AND !(CheckName = "ClusterHealth")
+    ////Collation
+    AND !(CheckName = "Collation" AND CollationName = "Latin1_General_CI_AS")
+    //AND !(CheckName = "Collation" AND (CollationName = "Latin1_General_CI_AS") OR (CollationName = "Latin1_General_BIN2"))
+    //CompatibilityLevel
+    //AND !(CheckName = "CompatibilityLevel")
+    ////DatabaseGrowth
+    AND !(CheckName = "DatabaseGrowth")
+    ////DatabaseLimit
+    AND !(CheckName = "DatabaseLimit")
+    ////DatabaseNotInAOAG
+    //AND !(CheckName = "DatabaseNotInAOAG")
+    ////DBCC
+    AND !(CheckName = "DBCC")
+    ////DBMail
+    //AND !(CheckName = "DBMail")
+    ////DBOwner
+    //AND !(CheckName = "DBOwner")
+    ////DBState
+    AND !(CheckName = "DBState")
+    //DisabledAlerts
+    AND !(CheckName = "DisabledAlerts" AND
+         (
+            ObjectName in
+            (
+          "Enable_Syteline_DB_Owner",
+          "ConnectionAlertAboveWarning",
+          "ConnectionAlert"
+          ) ) )
+    //DisabledJobs
+     AND !(
+        CheckName = "DisabledJobs" AND
+        (
+            ObjectName in
+            (
+"dba_Collect_Connection_Information",
+"SLdba_Disable_Enable_Syteline_DB_Owner_Alert",
+"SLdba_ConnectionAlert",
+"dba_Cleanup_IOBOX", /* fleet-wide ION BOD cleanup job */
+"dba_AddJackDBDatasourcesToRole",
+"dba_DailyReport",
+"dba_EmailLoginFailure",
+"dba_ExportToFlatFile",
+"dba_CaptureData",
+"dba_ObjectCompression",
+"dba_FleetInstanceReport","dba_PurgeScript_Execution",""
+ 
+ 
+            ) ))
+     ////DisabledOperators
+    //AND !(CheckName = "DisabledOperators")
+    ////ExtraSAUser
+    //AND !(CheckName = "ExtraSAUser")
+    ////FileGroup
+    AND !(CheckName = "FileGroup")
+    ////FileLocation
+    //AND !(CheckName = "FileLocation")
+    //JobHistory
+    AND !(CheckName = "JobHistory")
+    ////JobOwner
+    //AND !(CheckName = "JobOwner")
+    ////LoginLog
+    //AND !(CheckName = "LoginLog")
+    ////MultiUser
+    //AND !(CheckName = "MultiUser")
+    //Operators
+    AND !(
+        CheckName = "Operators" AND
+        (
+            ServerName matches "sl*" AND
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "sl@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-sl-hosting-dba@infor.com"))
+        )
+    )
+    ////OrphanedUsers
+    AND !(CheckName = "OrphanedUsers")
+AND !(CheckName = "OversizedDatabase")
+    ////PageVerify
+    //AND !(CheckName = "PageVerify")
+    ////RecoveryModel
+    //AND !(CheckName = "RecoveryModel")
+    ////SAUser
+    //AND !(CheckName = "SAUser")
+    //Snapshots
+    AND !(
+        CheckName = "Snapshots"
+        //AND formatDate(CollectionDate, "yyyy-MM-dd") < formatDate(now(), "yyyy-MM-dd")
+        AND (
+            (SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+            (SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 4) OR
+            (SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 100)
+        )
+    )
+    //TimeOffset
+    AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields CollectionDate, ServerName, CheckName, _raw
+| sort ServerName asc, CheckName asc, CollectionDate asc

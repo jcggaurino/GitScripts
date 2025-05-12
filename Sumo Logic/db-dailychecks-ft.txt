@@ -1,0 +1,178 @@
+(
+    _collector = saas.aws.mt.*.app.ft.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+/* collect the server name */
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w" nodrop
+/* collect the backup date for BackupOnDisk */
+| if(
+    CheckName = "BackupOnDisk", 
+    formatDate(parseDate(replace(PhysicalFileName, /.+(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}).+/, "$1-$2-$3 $4:$5:$6"), "yyyy-MM-dd HH:mm:ss", "UTC"), "yyyy-MM-dd HH:mm:ss", "UTC")
+    , null
+) as BackupStartDate
+| where 
+1=1
+//Safe:1
+AND !(Safe = 1)
+////AGHealth
+AND !(CheckName = "AGHealth")
+////AGLog
+//AND !(CheckName = "AGLog")
+//AGProperties //***handles in Monocle Dashboard***
+AND !(CheckName = "AGProperties")
+////AutoClose
+//AND !(CheckName = "AutoClose")
+////AutoCreateStats
+//AND !(CheckName = "AutoCreateStats")
+////AutoGrowth
+//AND !(CheckName = "AutoGrowth")
+////AutoShrink
+//AND !(CheckName = "AutoShrink")
+////AutoUpdateStats
+//AND !(CheckName = "AutoUpdateStats")
+////BackupHistory
+//AND !(CheckName = "BackupHistory")
+//AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 58) //should be 60, 58 is suffice?
+////BackupOnDisk
+//    AND !(
+//        CheckName = "BackupOnDisk" AND (
+//            /* we know Add2AG removes backups when finished*/
+//            if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_Add2AG\.(bak|trn)/ OR 
+//            /* we know RemoveTenant.ps1 removes backups when finished*/
+//            if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_FINAL_OFFLINE_BACK.*\.bak/ OR 
+//            /* we know dba_Cleanup cleans up files 6 days old, so we don't care about those */
+//            if(!isNull(BackupStartDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss.SSS") -  parseDate(BackupStartDate, "yyyy-MM-dd HH:mm:ss") > 518400000 /* 6 days, in ms */, false)
+//        )
+//    )
+////ClusterHealth //***done in Monocle Dashboard***
+AND !(CheckName = "ClusterHealth")
+////Collation
+//AND !(CheckName = "Collation")
+////CompatibilityLevel
+//AND !(CheckName = "CompatibilityLevel")
+////DatabaseGrowth
+//AND !(CheckName = "DatabaseGrowth" AND DatabaseName in("CODBALogs"))
+//AND !(CheckName = "DatabaseGrowth")
+////DatabaseLimit
+//AND (CheckName = "DatabaseLimit")
+//AND !(
+//        CheckName = "DatabaseLimit" AND (
+//            ClusterName in("ft11","ft12","ft16","ft17","ft18","ft19","ft20") //locked
+//        )
+//    )
+////DatabaseNotInAOAG
+//AND !(CheckName = "DatabaseNotInAOAG")
+//DBCC
+//    AND !(
+//        CheckName = "DBCC" AND (
+            //If these clusters, we know DBCC could take up to 3 days to rotate
+            //ClusterName in("sl01") AND
+            //if(!isNull(LastGoodCHECKDBDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss", "UTC") - parseDate(LastGoodCHECKDBDate, "yyyy-MM-dd'T'HH:mm:ss", "UTC") < 280800000 /* 3 days 6 hours, in ms */, false)
+        //)
+    //)
+////DBMail
+//AND !(CheckName = "DBMail")
+////DBOwner
+//AND !(CheckName = "DBOwner")
+////DBState
+//AND !(CheckName = "DBState")
+//DisabledAlerts
+//AND !(
+//        CheckName = "DisabledAlerts" AND ObjectName in(
+//            "ConnectionAlert",
+//            "ConnectionAlertAboveWarning",
+//            "Enable_Syteline_DB_Owner"
+//        )
+//    )
+//DisabledJobs
+    AND !(
+        CheckName = "DisabledJobs" AND 
+        (
+            ObjectName in 
+            (
+                "dba_AddJackDBDatasourcesToRole",
+                "dba_Collect_Connection_Information",
+                "dba_CaptureData", /* fleet-wide */
+                "dba_Cleanup_IOBOX", /* fleet-wide ION BOD cleanup job */
+                "dba_ObjectCompression",
+                "SLdba_ConnectionAlert",
+                "SLdba_Disable_Enable_Syteline_DB_Owner_Alert"
+            ) OR
+            (
+                ObjectName = "dba_SQLAGManualAuto" AND if(isNull(EnabledCurrent),true,EnabledCurrent = 1)
+            ) /* only show me when its disabled */ 
+        )
+    )
+////DisabledOperators
+//AND !(CheckName = "DisabledOperators")
+////ExtraSAUser
+//AND !(CheckName = "ExtraSAUser")
+////FileGroup
+//AND !(CheckName = "FileGroup")
+////FileLocation
+//AND !(CheckName = "FileLocation")
+////JobHistory //***handled by SQL***
+//AND !(CheckName = "JobHistory")
+////JobOwner
+//AND !(CheckName = "JobOwner")
+////LoginLog
+//AND !(CheckName = "LoginLog")
+////MissingIndex
+AND !(CheckName = "MissingIndex")
+////MultiUser
+//AND !(CheckName = "MultiUser")
+////Operators
+AND !(
+    CheckName = "Operators" AND
+    (
+        (
+            ServerName matches "ft*" AND 
+                (OperatorName = "Alert Operator" AND OperatorEmail = "ft@inforcloud.pagerduty.com") OR
+                (OperatorName = "DBA Group" AND OperatorEmail = "dlg-ft-hosting-dba@infor.com")
+        )
+    )
+)
+//OrphanedUsers
+//    AND !(CheckName = "OrphanedUsers")
+//OverdueProcesses
+AND !(CheckName = "OverdueProcesses" AND
+	JobName in
+	("dba_SQLStart","dba_SyncBackupFolderFull")
+)
+//OversizedDatabase
+//AND !(CheckName = "OversizedDatabase")
+////PageVerify
+//AND !(CheckName = "PageVerify")
+////RecoveryModel
+//AND !(CheckName = "RecoveryModel")
+////SAUser
+//AND !(CheckName = "SAUser")
+////Snapshots
+//    AND !(
+//        CheckName = "Snapshots" AND
+//        (
+// if we're looking at the day the snapshot was taken, we already know snapshots will not be the expected total--
+// look for anticipated values for Frankfurt (earliest region--400 UTC [4 hours of snapshots]) to at least assure we're getting snapshots for that day
+//            if(
+//                SnapshotDate matches concat(formatDate(_messagetime, "yyyy-MM-dd"),"*"),
+                //formatDate(now(), "EEEE") = SnapshotWeekDay,
+//                (
+//						(SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+//						(SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 2) OR
+//						(SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 20)
+//                ),
+//                (
+//                    (SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= if(SnapshotWeekDay = "Sunday",1,2)) OR
+//                    (SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= if(SnapshotWeekDay = "Sunday",4,6)) OR
+//                    (SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 115) //should be 120, 115 should suffice?
+//                )
+//            ) //end if
+//        )
+//    )
+////TimeOffset
+//AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields ServerName, CheckName, _raw
+| sort _messageTime asc
+//| count by CheckName
+//| sort by _count desc

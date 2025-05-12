@@ -1,0 +1,56 @@
+KB 2287398
+Sumo - Researching Blocking Processes
+print	
+|
+ Attachments (0)
+|	Linked KBs (0)	|	Linked Incidents (0)	|	Linked Defects (0)	|	Sign Up	|	Add to Favorites	|		
+Description:
+Use Sumo Query on whoisactive to research blocking, lines commented begin with //
+Steps To Reproduce:
+N/A
+Work Around:
+N/A
+Resolution:
+Use Sumo Query on whoisactive to research blocking, lines commented begin with //
+
+
+//(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*ft16* and region=us-east-1)| json auto
+(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*SL07* and region=us-east-1  )| json auto
+//(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*sl06* and region=ap-southeast-2 )| json auto
+//(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*sl36* and region=ap-northeast-1 AND "TAK_TRN_CSI_AIO_2" )| json auto
+//(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*ssmgf05* and region=us-east-1 )| json auto
+//(_source="db-whoisactive" and _collector=*prd*** and _sourcehost=*sl04* and region=eu-central-1 )| json auto
+//_collector = saas.aws.mt.prd.eu-central-1.app.ssmgf.*
+//| where sql_command = "*UpdateActiveBGTask2*"
+| num(session_id) 
+| where database_name != "master" && database_name != "CODBAProcedures" && database_name != "CODBALogs" && database_name != "dba"
+//| where collection_time = "2022-02-28T12:45:45.217"
+//| where database_name = "READINGROCK_PRD_CSI_AIO_0"
+//| where login_name = "syteline_db_owner"
+//| where blocking_session_id = 1522
+//| where session_id = 1798
+| where !(isNull(blocking_session_id))
+//| timeslice 5m
+//| count by _timeslice,blocking_session_id,database_name,_collector
+| count by database_name
+
+
+
+
+1 - Open Sumo - Infor SumoLogic URL: https://login.infor.com/sumo
+2 - Paste in query above, starting with line beginning with: //
+3 - Click on Magnifier in top right, and then Custom tab
+4 - if one day just double click the day end enter hour range in military hours: 14 for 2PM for example in the starting and ending hour then click apply
+	if the dates cross days, double-click on the first day entering military hour, click the first day, then the 2nd day, then enter military hour for end day
+	AND make sure to click APPLY
+5 - On the top of the query, comment unneeded region with //, and change the sourcehost provided by cloud ops
+6 - Run the query by clicking magnifying glass in the top right
+7 - Once you see results on the Aggregates tab see if one customer db stands out, if so you can filter by obvious one and run again
+8 - Once you see results a second time look at the Messages and see as you scroll through messages if there is a predominant Blocking Session ID
+9 - Comment out line like: // | where !(isNull(blocking_session_id)) and uncomment line like: | where blocking_session_id = 1522
+	changing the spid above from 1522 to your common blocking session
+10 - Run the query again, scrolling through the messages, expanding the ... buttons to see session_id, blocking_session_id to see if the session is lead blocker
+	or if you have blocking session ID, or wait time it is not the lead block
+11 -  Record the spid, collection time, host, spid, sql query
+Note:
+N/A

@@ -1,0 +1,16 @@
+*****
+((((replicator and error)
+AND _sourceCategory=ido_logs)
+AND "Login failed for user" AND "Reason: The account is disabled")
+)
+AND TAK_PRD
+
+*****
+(((((replicator and error)
+AND _sourceCategory=ido_logs)
+AND "Login failed for user" AND "Reason: The account is disabled")
+)
+AND TAK_PRD)
+//AND _sourceName="C:\\Logs\\LogMonitor\\20230731170913_Ad0PyfZHG0_ERPSLABSRVDNBLQ_MGLog.log"
+
+*****

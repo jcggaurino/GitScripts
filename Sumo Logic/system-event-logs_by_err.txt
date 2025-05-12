@@ -1,0 +1,35 @@
+(_collector = saas.aws.mt.prd.app.*.db.*
+AND region = "eu-central-1")
+AND _sourcecategory = "os"
+| parse "InsertionStrings = {*};" as InsertionStrings
+| parse "Message = \"*\";" as Message
+| parse "Type = \"*\";" as Type
+| parse "TimeGenerated = \"*\";" as TimeGenerated
+| parse "SourceName = \"*\";" as SourceName
+| parse "Logfile = \"*\";" as Application
+| parse "Computer = \"*\";" as Computer
+| parse "CategoryString = \"*\";" as CatString
+| where (type = "Error" or type = "Warning")
+| where (SourceName = "AWSNVMe" or SourceName = "Disk")
+| count by Computer,SourceName | sort by Computer,SourceName ASC
+
+
+
+
+((_collector = saas.aws.mt.prd.app.*.db.*
+and _sourceCategory = os //(error or exception or timeout or fail)
+and _sourceHost = *mtmgf*
+))
+| parse "EventCode = *;" as EventCode
+| parse "Computer = \"*\";" as Computer
+| parse "Message = \"*\";" as Message
+| parse "Type = \"*\";" as EventType
+| parse "SourceName = \"*\";" as SourceName
+| where (EventType = "Error" or EventType = "Warning")
+| _raw as raw_text
+| if(raw_text matches "*error*", "error_keyword",if(raw_text matches "*Error*", "error_keyword",if(raw_text matches "*exception*", "exception_keyword",if(raw_text matches "*Exception*","exception_keyword",if(raw_text matches "*timeout*", "timeout_keyword", if(raw_text matches "*fail*", "fail_keyword","no_error_keywords")))))) as keyword_tag
+| where region = "us-east-1"
+//| where Computer = "*tam01*"
+
+
+

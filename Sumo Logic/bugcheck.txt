@@ -1,0 +1,4 @@
+To check the bug-check from the Sumo logs
+ 
+_collector = saas.aws.mt.prd.app.*.db* "The computer has rebooted from a bugcheck" | count by _sourceHost,_messageTime 
+ 

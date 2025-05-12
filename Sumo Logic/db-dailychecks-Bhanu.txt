@@ -1,0 +1,35 @@
+_source=db-dailychecks
+AND (_collector=saas.aws.mt.*.app.sl.db.*
+OR _collector=saas.aws.mt.*.app.ft.db.*
+OR _collector=saas.aws.mt.*.app.mtmgf.db.*
+OR _collector=saas.aws.mt.*.app.ssmgf.db.*
+OR _collector=saas.aws.mt.*.app.ipf.db.*
+OR _collector=saas.aws.mt.*.app.tam.db.*
+OR _collector=saas.aws.mt.*.app.mscm.db.*
+OR _collector=saas.aws.mt.*.app.ts.db.*
+OR _collector=saas.aws.mt.*.app.mrm.db.*
+OR _collector=saas.aws.mt.*.app.ecom.db.*
+OR _collector=saas.aws.mt.*.app.inforce.db.*
+OR _collector=saas.aws.mt.*.app.ir.db.*) //_dataTier=All
+| where !(CheckName = "OverdueProcesses")
+AND !(CheckName = "OversizedDatabase")
+AND !(CheckName = "MissingIndex")
+AND !(CheckName = "AutoGrowth")
+AND !(CheckName = "FileGroup")
+AND !(CheckName = "DatabaseGrowth")
+AND !(CheckName = "DatabaseLimit")
+AND !(CheckName = "ClusterHealth")
+AND !(CheckName = "Operators")
+AND !(CheckName = "BackupHistory")
+AND !(CheckName = "ExtraneousUsers" AND LoginName matches "*DBAAdmins")
+AND !(CheckName = "WindowsActivation" AND Activated = "True")
+AND !(CheckName = "FileLocation" AND DatabaseName = "SSISDB")
+AND !(CheckName = "DisabledJobs" AND (ObjectName = "dba_ObjectCompression" OR ObjectName = "dba_CaptureData" OR ObjectName = "dba_AddJackDBDatasourcesToRole" OR ObjectName = "dba_FileGrowth" OR ObjectName = "dba_UpdateJackDB"))
+AND !(CheckName = "OrphanedUsers")
+| parse field=_collector "saas.aws.mt.*.app.*.db" as region, backupApp nodrop
+| if(isBlank(app_short_name), backupApp, app_short_name) as app_short_name
+| json field=_raw "CollectionDate" AS collection_date
+| json field=_raw "ServerName" AS server_name
+| json field=_raw "CheckName" AS check_name
+| count by check_name, app_short_name
+| order by check_name asc, _count desc

@@ -1,0 +1,141 @@
+(
+    _collector = saas.aws.mt.*.app.ecom.db.* OR
+    _collector = saas.aws.mt.*.app.hrsd.db.* OR
+    _collector = saas.aws.mt.*.app.cpqcf.db.* OR
+    _collector = saas.aws.mt.*.app.cpqeq.db.* OR
+    _collector = saas.aws.mt.*.app.cpqwb.db.* OR
+    _collector = saas.aws.mt.*.app.ssmgf.db.* OR
+    _collector = saas.aws.mt.*.app.mtmgf.db.* OR
+    _collector = saas.aws.mt.*.app.amsi.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where 
+    1=1
+    ////AGHealth
+    //(CheckName = "AGHealth")
+    ////AGLog
+    //AND !(CheckName = "AGLog")
+    //AGProperties
+    AND !(CheckName = "AGProperties" AND (AvailabilityMode <> "SYNCHRONOUS_COMMIT" OR FailoverMode <> "Automatic"))
+    ////AutoClose
+    //AND !(CheckName = "AutoClose")
+    ////AutoCreateStats
+    //AND !(CheckName = "AutoCreateStats")
+    ////AutoGrowth
+    //AND !(CheckName = "AutoGrowth")
+    ////AutoShrink
+    //AND !(CheckName = "AutoShrink")
+    ////AutoUpdateStats
+    //AND !(CheckName = "AutoUpdateStats")
+    //BackupHistory
+    AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 50)
+    //BackupOnDisk
+    AND !(CheckName = "BackupOnDisk" AND PhysicalFileName matches /.+_Add2AG\.(bak|trn)/)
+    //ClusterHealth
+    AND !(CheckName = "ClusterHealth")
+    ////Collation
+    AND !(CheckName = "Collation" AND CollationName = "Latin1_General_CI_AS")
+    //CompatibilityLevel
+    //AND !(CheckName = "CompatibilityLevel")
+    ////DatabaseGrowth
+    //AND !(CheckName = "DatabaseGrowth")
+    ////DatabaseLimit
+    //AND !(CheckName = "DatabaseLimit")
+    ////DatabaseNotInAOAG
+    //AND !(CheckName = "DatabaseNotInAOAG")
+    ////DBCC
+    //AND !(CheckName = "DBCC")
+    ////DBMail
+    //AND !(CheckName = "DBMail")
+    ////DBOwner
+    //AND !(CheckName = "DBOwner")
+    ////DBState
+    //AND !(CheckName = "DBState")
+    //DisabledAlerts
+    //AND !(CheckName = "DisabledAlerts")
+    //DisabledJobs
+    //AND !(CheckName = "DisabledJobs")
+    ////DisabledOperators
+    //AND !(CheckName = "DisabledOperators")
+    ////ExtraSAUser
+    //AND !(CheckName = "ExtraSAUser")
+    ////FileGroup
+    AND !(CheckName = "FileGroup")
+    ////FileLocation
+    //AND !(CheckName = "FileLocation")
+    //JobHistory
+    AND !(CheckName = "JobHistory" AND Status = "Cancelled")
+    ////JobOwner
+    //AND !(CheckName = "JobOwner")
+    ////LoginLog
+    //AND !(CheckName = "LoginLog")
+    ////MultiUser
+    //AND !(CheckName = "MultiUser")
+    //Operators
+    AND !(
+        CheckName = "Operators" AND
+        ((
+            ServerName matches "ecom*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "ecom@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-ecom-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "hrsd*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "hrsd@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-hrsd-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "cpqcf*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "cpqcf@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-cpqcf-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "cpqeq*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "cpqeq@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-cpqeq-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "cpqwb*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "cpqwb@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-cpqwb-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "ssmgf*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "ssmgf@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-ssmgf-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "mtmgf*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "mtmgf@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-mtmgf-hosting-dba@infor.com"))
+        )
+        OR (
+            ServerName matches "amsi*" AND 
+            ((OperatorName = "Alert Operator" AND OperatorEmail = "amsi@inforcloud.pagerduty.com") OR
+            (OperatorName = "DBA Group" AND OperatorEmail = "dlg-amsi-hosting-dba@infor.com"))
+        ))
+    )
+    ////OrphanedUsers
+    //AND !(CheckName = "OrphanedUsers")
+    ////PageVerify
+    //AND !(CheckName = "PageVerify")
+    ////RecoveryModel
+    //AND !(CheckName = "RecoveryModel")
+    ////SAUser
+    //AND !(CheckName = "SAUser")
+    //Snapshots
+    AND !(
+        CheckName = "Snapshots"
+        //AND formatDate(CollectionDate, "yyyy-MM-dd") < formatDate(now(), "yyyy-MM-dd")
+        AND (
+            (SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+            (SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 4) OR
+            (SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 100)
+        )
+    )
+    //TimeOffset
+    AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields CollectionDate, ServerName, CheckName, _raw
+| sort ServerName asc, CheckName asc, CollectionDate asc

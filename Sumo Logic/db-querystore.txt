@@ -1,0 +1,16 @@
+##query store sumo
+(_source=db-querystore and _collector=saas.aws.mt.prd.app.sl.db.*)
+
+
+(( _collector = saas.aws.mt.prd.app.tam.db.* ) OR ( _collector = saas.aws.*.mt.tam.*.db.prd.* ))
+AND (  _sourcename = "E:\\system01\\log\\QueryStore.log" )
+AND ( region = us-east-1 )
+AND ( _sourcehost = tam61* )  
+| json "query_id", "object_id","query_sql_text", "avg_cpu_time", "count_executions", "num_plans","servername", "dbname", "avg_duration"
+| where (dbname matches "ZINCMATURECOD_TRN_TAM_MSF_0")
+//| where query_id = 1989124
+| formatDate(_messagetime, "yyyy-MM-dd HH:mm") as DateTime 
+| number(avg_cpu_time) as avg_cpu_time   | number(avg_duration) as avg_duration
+| count by DateTime, query_id, _sourcehost, dbname, avg_duration, avg_cpu_time, count_executions, num_plans 
+| sort by avg_duration desc
+//| limit 25 

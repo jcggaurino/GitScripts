@@ -1,0 +1,31 @@
+=====Cheat Sheet
+https://help.sumologic.com/05Search/Search-Cheat-Sheets
+
+From Durga:
+
+//_isNew - Only showing new stuff
+_collector = *tam08-m* | logcompare timeshift -1h | where (_isNew)
+
+=====Reference:
+https://teams.microsoft.com/l/message/19:1OPHqzaAIFNa-mbHK6szD41c4h4vptcKfdjEuhPmf4U1@thread.tacv2/1686149293495?tenantId=457d5685-0467-4d05-b23b-8f817adda47c&groupId=a954410d-fc9c-46d7-99f1-be688db04807&parentMessageId=1686149293495&teamName=Fleet%20DBAs&channelName=General&createdTime=1686149293495
+
+FROM Richard Sharp:
+
+here is sample sumo query for you
+you can see the _dataTier=ALL that durga referenced to you
+if you do not specify ALL then sumo will only query the Continuous tier
+i entered a jira ticket and iwan will adjust db-monitorconnections today
+ 
+note - you can also see some commented out lines where i was playing with the various tiers, for your reference
+ 
+/* _dataTier=Continuous AND */
+/* _dataTier=Frequent AND */
+/* _dataTier=InFrequent AND */
+_dataTier=ALL
+_budget=*
+AND _source=db-*
+/* AND _source=db-monitorconnections */
+| _size/1024/1024 as sizemb
+| sum(sizemb) as MB by _source
+
+=====

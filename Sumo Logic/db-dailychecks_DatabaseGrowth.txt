@@ -1,0 +1,12 @@
+(
+    _collector = saas.aws.mt.*.app.m3.db.m327euc*
+)
+AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where 
+    1=1
+    ////DatabaseGrowth
+    AND (CheckName = "DatabaseGrowth")
+| fields CollectionDate, ServerName, CheckName, _raw
+| sort ServerName asc, CheckName asc, CollectionDate asc

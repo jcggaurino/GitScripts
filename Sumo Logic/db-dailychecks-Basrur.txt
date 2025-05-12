@@ -1,0 +1,138 @@
+//For SL
+(
+//_collector = saas.aws.mt.prd*.app.SL.db.* OR
+//_collector = saas.aws.mt.int*.app.SL.db.*
+_collector = saas.aws.*.mt.*sl.*.db.*
+)
+AND _source = "db-dailychecks"(_dataTier = All)
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where
+1=1
+////AGHealth
+//(CheckName = "AGHealth")
+////AGLog
+//AND !(CheckName = "AGLog")
+//AGProperties
+AND !(CheckName = "AGProperties" AND (AvailabilityMode <> "SYNCHRONOUS_COMMIT" OR FailoverMode <> "Automatic"))
+////AutoClose
+//AND !(CheckName = "AutoClose")
+////AutoCreateStats
+//AND !(CheckName = "AutoCreateStats")
+////AutoGrowth
+AND !(CheckName = "AutoGrowth")
+////AutoShrink
+//AND !(CheckName = "AutoShrink")
+////AutoUpdateStats
+//AND !(CheckName = "AutoUpdateStats")
+//BackupHistory
+AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 50)
+//BackupOnDisk
+AND !(CheckName = "BackupOnDisk") //AND PhysicalFileName matches /.+_Add2AG\.(bak|trn)/)
+//ClusterHealth //***done in SQL***
+AND !(CheckName = "ClusterHealth")
+////Collation
+AND !(CheckName = "Collation" AND CollationName = "Latin1_General_CI_AS")
+AND !(CheckName = "FileGroup")
+////FileLocation
+//AND !(CheckName = "FileLocation")
+//JobHistory
+AND !(CheckName = "JobHistory" AND Status = "Cancelled")
+AND !(CheckName = "Operators")
+////AND !(CheckName = "OrphanedUsers")
+//Windows Activation
+AND !(CheckName = "WindowsActivation" AND (Activated = "True"))
+////PageVerify
+//AND !(CheckName = "PageVerify")
+////Oversized Database
+AND !(CheckName = "OversizedDatabase")
+AND !(
+CheckName = "Snapshots"
+//AND formatDate(CollectionDate, "yyyy-MM-dd") < formatDate(now(), "yyyy-MM-dd")
+AND (
+(SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+(SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 4) OR
+(SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 100)
+)
+)
+//TimeOffset
+AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields CollectionDate, servername,DatabaseName,CheckName,JobName,ObjectName,CommandSQL,EnabledCurrent,StateDesc
+| sort ServerName asc, CheckName asc, CollectionDate desc
+| count by CheckName
+| sort by _count desc
+
+
+
+
+
+//For Others
+(
+//_collector = saas.aws.mt.prd*.app.mtmgf.db.* OR
+//_collector = saas.aws.mt.int*.app.mtmgf.db.* OR
+//_collector = saas.aws.mt.prd*.app.ssmgf.db.* OR
+//_collector = saas.aws.mt.int*.app.ssmgf.db.*
+_collector = saas.aws.*.mt.*ecom.*.db.* OR
+_collector = saas.aws.*.mt.*ft.*.db.* OR
+_collector = saas.aws.*.mt.*ipf.*.db.* OR
+_collector = saas.aws.*.mt.*mrm.*.db.* OR
+_collector = saas.aws.*.mt.*mtmgf.*.db.* OR
+_collector = saas.aws.*.mt.*ssmgf.*.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where
+1=1
+////AGHealth
+//(CheckName = "AGHealth")
+////AGLog
+//AND !(CheckName = "AGLog")
+//AGProperties
+AND !(CheckName = "AGProperties" AND (AvailabilityMode <> "SYNCHRONOUS_COMMIT" OR FailoverMode <> "Automatic"))
+////AutoClose
+//AND !(CheckName = "AutoClose")
+////AutoCreateStats
+//AND !(CheckName = "AutoCreateStats")
+////AutoGrowth
+AND !(CheckName = "AutoGrowth")
+////AutoShrink
+//AND !(CheckName = "AutoShrink")
+////AutoUpdateStats
+//AND !(CheckName = "AutoUpdateStats")
+//BackupHistory
+AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 50)
+//BackupOnDisk
+AND !(CheckName = "BackupOnDisk") //AND PhysicalFileName matches /.+_Add2AG\.(bak|trn)/)
+//ClusterHealth //***done in SQL***
+AND !(CheckName = "ClusterHealth")
+////Collation
+AND !(CheckName = "Collation" AND CollationName = "Latin1_General_CI_AS")
+AND !(CheckName = "FileGroup")
+////FileLocation
+//AND !(CheckName = "FileLocation")
+//JobHistory
+AND !(CheckName = "JobHistory" AND Status = "Cancelled")
+AND !(CheckName = "Operators")
+////AND !(CheckName = "OrphanedUsers")
+//Windows Activation
+AND !(CheckName = "WindowsActivation" AND (Activated = "True"))
+////PageVerify
+//AND !(CheckName = "PageVerify")
+////Oversized Database
+AND !(CheckName = "OversizedDatabase")
+AND !(
+CheckName = "Snapshots"
+//AND formatDate(CollectionDate, "yyyy-MM-dd") < formatDate(now(), "yyyy-MM-dd")
+AND (
+(SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+(SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 4) OR
+(SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 100)
+)
+)
+//TimeOffset
+AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields CollectionDate, servername,DatabaseName,CheckName,JobName,ObjectName,CommandSQL,EnabledCurrent,StateDesc
+| sort ServerName asc, CheckName asc, CollectionDate desc
+| count by CheckName
+| sort by _count desc

@@ -1,0 +1,29 @@
+//Collected every 2nd and 4th Saturday so make note of this when picking duration filter
+(((_source="tablesize.mt" and _collector="saas.aws.mt.prd.us-east-1.app.infra.dbsizepertenant")))
+| parse "time:*,class:*,instance:*,servername:*,tenant:*,product:*,env:*,region:*,account:*,metric:*,envtype:*,datapoint:*,tablename:*,rowcount:*,database:*" as time,class,instance,servername,tenant,product,env,region,account,metric,envType,SizeKB,tablename,rowcount,database
+| where product <> "test"
+| if (isBlank(RowCount), "0", RowCount) as RowCount
+| num(RowCount) as RowCount
+| if (isBlank(SizeKB), "0", SizeKB) as SizeKB
+| num(SizeKB) as SizeKB
+| if (isBlank(product), "NotTagged", product) as Product
+|count as count by product
+
+
+===SL Check 3 largest tables ("dbo.AuditLog", "dbo.ReplicatedRows3_mst", "dbo.application_debug_log_mst")
+(((_source="tablesize.mt" and _collector="saas.aws.mt.prd.us-east-1.app.infra.dbsizepertenant"))) AND ",product:sl," AND ",account:026631811025,"
+| parse "time:*,class:*,instance:*,servername:*,tenant:*,product:*,env:*,region:*,account:*,metric:*,envtype:*,datapoint:*,tablename:*,rowcount:*,database:*" as time,class,instance,servername,tenant,product,env,region,account,metric,envType,SizeKB,tablename,rowcount,database
+| where account in ("026631811025")
+//| where tenant <> "None"
+| if (isBlank(RowCount), "0", RowCount) as RowCount
+| num(RowCount) as RowCount
+| if (isBlank(SizeKB), "0", SizeKB) as SizeKB
+| num(SizeKB) as SizeKB
+| if (isBlank(product), "NotTagged", product) as Product
+|where if ("sl" = "*", true, product matches "sl")
+| where tablename in ("dbo.AuditLog", "dbo.ReplicatedRows3_mst", "dbo.application_debug_log_mst")
+| dedup 1 by servername, database, tablename, sizeKB
+| sum(SizeKB) group by serverName, tablename
+
+
+=====

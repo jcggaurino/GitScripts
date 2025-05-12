@@ -1,0 +1,41 @@
+/* Description: Detects text indexes that require maintenance (Full details below)Run Book Wiki: https://inforwiki.atlassian.net/wiki/spaces/LE/pages/189431772/TAM+MT+Runbook+V.+2#TAM-DB--Remediate-text-indexesAlerts: DLG-LE-DEVOPS, LawsonMT Pager Duty
+JIRAs: LEDO-15182
+Created: 2023/09/30
+Last Modified:
+09/10/2023 - added DBA pagerduty as recipient
+Pro-actively identify text index maintenance candidates.   The commands in remediation_command and verification_command do not require downtime, but should be run as "lawson" during the customer's off-hours to avoid end users potentially experiencing UI query failures unnecessarily.
+   The remediation_command should return zero for errno.  The first line of the output should start with "Executing DDL for ".
+   The verification_command is intended to be run both before and after remediation_command. Warnings related to data compression need to be ignored.
+   
+   This query only captures cases of more than one occurrence to eliminate instances where the slow response was due to garbage collection on the application JVM.
+   
+   This query assumes there was only one text search field being filtered against in the entire expression.
+   
+   This query ignores text searches where there was more than one relation to the text search field.  (Currently this could only happen via special configuration.)
+   We could adjust in the future to handle more than one relation by chaining additional viewdict/sed commands.
+   
+   The text index maintenance is primarily necessary due to fragmentation. However, we have also seen cases of the SQL Server text index mechanism having problems related to processing its queue of pending updates (same remediation).
+   There won't be a Landmark code that will eliminate the need for this alert.
+ */
+(product=tam AND (_source = "wildfly-slave-server-log" OR _source = "grid-landmark-lmrkbldoc" OR _source = "grid-landmark-lpa"))
+| json auto
+| where alert = "RED ALERT DB"
+| where name = "PBiIterator"
+| where type = "long iterator fetch" OR type = "long cursor fetch"
+| where detail.filter matches "* contains *"
+| parse regex "(?<textsearchfield>[\w|.|\[|\]]*) contains " nodrop  // Assumes a single text search field in entire expression.| parse field=textsearchfield "*.*" as relation, junk nodrop  // Assumes the text indexed field is not a member of a group field.
+| where !(relation matches "*.*" or junk matches "*.*")  // Only include text queries with at most a single relation to the text search field. (Could hanlde by chaining viewdict/sed commands.)| if (detail.filter matches "*post-process filter =*", "true", "false") as post_processing
+| where post_processing = "false" OR type = "long cursor fetch"| if (detail.rangepath.set_type = "virtual", "true", "false") as virtual_index
+| if (detail.rangepath.orderbyrelevance = "true", "true", "false") as relevance_order
+| where (virtual_index = "false" or relevance_order = "true")  // The long query may have been due to sorting since there is not a physical index backing the "order by".| parse field=_sourceHost "tam-*-*-" as host_type, farm nodrop
+| parse field=_raw "\"serverName\":\"*\", \"databaseName\":\"*\"" as cluster_name, database_name nodrop| count, sum(duration_ms) as sum_ms, max(duration_ms) as max_ms by dataarea, businessclass, textsearchfield, relation, post_processing, virtual_index, relevance_order, host_type, farm, cluster_name, database_name, detail.rangepath.filters
+| where _count > 1  // Require more than one occurrence to eliminate cases reported as slow due to garbage collection on the JVM.
+| round(sum_ms / 1000) as sum_secs
+| round(sum_secs / _count) as ave_secs
+| round(max_ms / 1000) as max_secs
+| order by ave_secs, _count| if (isBlank(relation), "", concat("viewdict --relations ", dataarea, " ", businessclass, " | grep \"^[ ][ ]", relation, " \" | sed -e \"s/.* to //1\" -e \"s/[.].*$//1\" -e \"/^$/d\" | ")) as viewdict_grep_sed_command
+| concat(viewdict_grep_sed_command, "time dbmaint --indexes --textonly --update --rebuild ", dataarea, " ", isBlank(relation) ? businessclass : "@-") as remediation_command
+| concat(viewdict_grep_sed_command, "dbverify --only-indexes ", dataarea, " ", isBlank(relation) ? businessclass : "@-") as verification_command
+| replace(detail.rangepath.filters, "\"", "\\\"") as text_search_filter  // escape embedded quotes
+| replace(text_search_filter, "****", "\\\"0\\\"") as text_search_filter  // replace masked off PPI with string "0"
+| concat("opfdbdump ", dataarea, " ", businessclass, " --lazyload=false -v f -S --maxrows=1 --nocount -f \"", text_search_filter, "\"") as textsearchquery_command| fields dataarea, cluster_name, database_name, businessclass, textsearchfield, post_processing, virtual_index, relevance_order, _count, sum_secs, ave_secs, max_secs, host_type, farm, remediation_command, verification_command, textsearchquery_command

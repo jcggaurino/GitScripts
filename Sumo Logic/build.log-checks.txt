@@ -1,0 +1,65 @@
+(
+	_collector=saas.aws.mt.*prd*.app.*.db.*
+//	_collector=*prd.app.ecom.db.ECOM05* OR
+//	_collector=*prd.app.mtmgf.db.MTMGF*
+)	
+and (
+_sourcehost = ts* 
+or _sourcehost = amsi*
+)
+and _sourcename="C:\scripts\log\Build.log" "6/20/2022" "[ERROR]" 
+| fields _Collector
+| sort _Collector asc
+
+(_source=build-logs and _sourcename=C:\scripts\log\Build.log and _collector=saas.aws.mt.prd-ncr.app.hrsd.db.*)
+| where 1=1
+//Message
+//AND _raw matches "*[ERROR]*"
+| sort by Time DESC
+
+(
+	_collector=*prd.app.cpccf.db.CPQCF09* OR
+	_collector=*prd.app.cpqeq.db.CPQEQ07* OR
+	_collector=*prd.app.cpqwb.db.CPQWB07* OR
+	_collector=*prd.app.mingle.db.IONAPI25* OR
+	_collector=*prd.app.mingle.db.MINGLE25* OR
+	_collector=*prd.app.ssmgf.db.SSMGF10*
+)	
+and _sourcename="C:\scripts\log\Build.log" "9/15/2021" "[ERROR]" 
+| fields _Collector
+| sort _Collector asc
+
+--Below from Travis
+(_source=build-logs and _collector=saas.aws.mt.prd.app.ips.db.*)
+| where 1=1
+//Message
+//AND _raw matches "*<search_string>*"
+| sort by Time DESC
+
+--Below from Bradley
+--here's a better (easier) query (it will default sort by time descending). 
+--Just change the first "*" in the _collector to your desired app, and the second "*" to your desired cluster/server
+_collector = saas.aws.mt.prd.app.*.db.*
+AND _source = build-logs
+AND _sourcename = "C:\\scripts\\log\\Build.log"
+AND "[ERROR]"
+
+
+--Below from Build Team (Raffy)
+      ( _collector = saas.aws.mt.prd.app.*ft.db.* OR _collector = saas.aws.mt.prd.app.*.db.* )
+  //AND ( _source = customizations-logs OR _source = build-logs )
+  AND ( _sourcename = "C:\\customizations\\sl\\log\\Customizations.log" OR _sourcename = "C:\\scripts\\log\\Build.log" )
+  //AND ("[ERROR]")
+  //AND ( us-east-1 )
+  AND  ( ut3ft20* )
+| formatDate(_messagetime, "yyyy-MM-dd HH:mm") as Error_DateTime 
+| parse "): *" as Main_Error nodrop
+| or | parse "* - *" as Error_Script, Error_Message nodrop
+| or | parse regex field = Error_Script "(?<Error_Name>[\w-]+\.\w*)"
+| where Error_Name matches "*" AND 
+        Error_Message matches "*"
+| _sourcehost as Source_Hostname 
+| _sourcename as Log_Type  
+| sort by Source_Hostname asc
+| count Source_Hostname, _source, Main_Error, Error_Message, Error_DateTime | sort by _count desc
+//| transpose row Error_DateTime column Source_Hostname, _source, Error_Message 

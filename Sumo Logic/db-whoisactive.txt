@@ -1,0 +1,234 @@
+*****Show blocking_session_id,database_name,_collector by _count
+(_source="db-whoisactive" and _collector=*int*** and _sourcehost=**ssmgfstg01** and region=*)| json auto
+| where database_name != "master"
+| where !(isNull(blocking_session_id))
+| count by blocking_session_id,database_name,_collector
+| top 10 blocking_session_id,database_name,_collector by _count
+
+
+*****Better Format with additional details
+--SUMO  Script
+
+--Email: RE: SPM Flow Control
+
+(
+    _collector = saas.aws.mt.prd*.app.*.db.sl37*
+)
+AND _source = "db-whoisactive"
+| json auto field=_raw
+| replace(replace(sql_text, "<?query --\r\n", ""), "\r\n--?>", "") as sql_text
+| replace(replace(sql_command, "<?query --\r\n", ""), "\r\n--?>", "") as sql_command
+| trim(cpu) AS cpu
+| trim(reads) AS reads
+| trim(writes) AS writes
+| trim(physical_reads) AS physical_reads
+| if(status IN ("running","runnable","suspended"), true, false) AS is_active
+| where login_name NOT IN ("NT AUTHORITY\\SYSTEM") //SQL Server
+| top 10 collection_time
+  , %"dd_hh:mm:ss.mss"
+  , sql_text
+        , sql_command
+        , login_name
+        , wait_info
+        , blocking_session_id
+        , cpu
+        , reads
+        , writes
+        , physical_reads
+        , status
+  , is_active
+        , host_name
+        , database_name
+        , program_name
+        , start_time
+| sort by %"dd_hh:mm:ss.mss" desc
+
+
+--or--
+
+
+(
+    _collector=*prd*** and _sourcehost=**sl62** and region=*
+)
+AND _source = "db-whoisactive"
+| json auto field=_raw
+| replace(replace(sql_text, "<?query --\r\n", ""), "\r\n--?>", "") as sql_text
+| replace(replace(sql_command, "<?query --\r\n", ""), "\r\n--?>", "") as sql_command
+| trim(cpu) AS cpu
+| trim(reads) AS reads
+| trim(writes) AS writes
+| trim(physical_reads) AS physical_reads
+| if(status IN ("running","runnable","suspended"), true, false) AS is_active
+| where login_name NOT IN ("NT AUTHORITY\\SYSTEM") //SQL Server
+| top 10 collection_time
+  , %"dd_hh:mm:ss.mss"
+  , session_id
+  , sql_text
+        , sql_command
+        , login_name
+        , wait_info
+        , blocking_session_id
+        , cpu
+        , reads
+        , writes
+        , physical_reads
+        , status
+  , is_active
+        , host_name
+        , database_name
+        , program_name
+        , start_time
+| sort by %"dd_hh:mm:ss.mss" desc
+
+
+*****Re: Discussion about lock problems at AMES_PRD
+
+(_source="db-whoisactive" and _collector=*prd*eln* and _sourcehost=*eln03* and region=*)| json auto
+| where session_id = 430
+
+*****
+(((_source="db-whoisactive" and _collector="saas.aws.mt.prd.app.mtmgf.db.MTMGF17*"))
+)
+| parse "* , [dd hh:mm:ss.mss] =  * , [session_id] =  * , [sql_text] = * , [sql_command] = * , [login_name] =  * , [wait_info] =  * , [tasks] =                    * , [CPU] =  * , [CPU_delta] =  * , [tempdb_allocations] =                    * , [tempdb_current] =                    * , [tempdb_allocations_delta] =  * , [tempdb_current_delta] =  * , [blocking_session_id] =  * , [reads] =  * , [reads_delta] =  * , [writes] =  * , [writes_delta] =  * , [context_switches] =                      * , [context_switches_delta] =  * , [physical_io] =                    * , [physical_reads] =  * , [physical_io_delta] =  * , [physical_reads_delta] =  * , [query_plan] =  * , [locks] =  * , [used_memory] =                     * , [used_memory_delta] =  * , [status] =  * , [open_tran_count] =                    * , [percent_complete] =  * , [host_name] =  * , [database_name] =  * , [program_name] =  * , [additional_info] = * , [start_time] =  * , [login_time] =  * , [request_id] =  *" as Collection_Time,Duration,Session_ID,SQL_Text,SQL_Command,Login_Name,Wait_Info,Tasks,CPU,CPU_Delta,TempDB_Allocations,TempDB_Current,TempDB_Allocations_delta,TempDBCurrentDelta,Blocking_Session_ID,Reads,Reads_Delta,Writes,Writes_Delta,Context_Switches,Context_Siwtches_Delta,Physical_IO,Physical_Reads,Physical_IO_Delta,Physical_Reads_Delta,Query_Plan,Locks,Used_Memory,Used_Memory_Delta,Status,Open_Tran_Count,Percent_Complete,Host_Name,Database_Name,Program_Name,Additional_Info,Start_Time,Login_Time,Request_ID
+
+
+*****Find specific collection_time and session_id (http://navigator.infor.com/n/incident.asp?IncidentID=16644519)
+(_source="db-whoisactive" and _collector=*prd*sl* and _sourcehost=*sl27* and region=*)| json auto
+| where collection_time = "2022-07-26T15:00:50.340" and session_id in ("336","98")
+
+
+*****With input parameters
+(product=tam and account=prd and _source="db-whoisactive")
+| json auto
+| where _sourcehost matches  {{DBCluster}}
+| num(cpu_delta) as cpu_delta_num
+| where cpu_delta_num > 0
+| order by cpu_delta_num //| count by session_id
+| fields cpu_delta_num, program_name, login_name, session_id, sql_command, _raw
+
+
+*****or below
+--WIA
+
+(
+    _collector=*prd*** and _sourcehost=**sl62** and region=*
+)
+AND _source = "db-whoisactive"
+| json auto field=_raw
+| replace(replace(sql_text, "<?query --\r\n", ""), "\r\n--?>", "") as sql_text
+| replace(replace(sql_command, "<?query --\r\n", ""), "\r\n--?>", "") as sql_command
+| trim(cpu) AS cpu
+| trim(reads) AS reads
+| trim(writes) AS writes
+| trim(physical_reads) AS physical_reads
+| if(status IN ("running","runnable","suspended"), true, false) AS is_active
+| where login_name NOT IN ("NT AUTHORITY\\SYSTEM") //SQL Server
+| top 10 collection_time
+  , %"dd_hh:mm:ss.mss"
+  , session_id
+  , sql_text
+        , sql_command
+        , login_name
+        , wait_info
+        , blocking_session_id
+        , cpu
+        , reads
+        , writes
+        , physical_reads
+        , status
+  , is_active
+        , host_name
+        , database_name
+        , program_name
+        , start_time
+| sort by %"dd_hh:mm:ss.mss" desc
+
+*****or below
+_source="db-whoisactive" and _collector=**** and _sourcehost=** and region=*
+and collection_time and start_time
+//UpdateActiveBGTask2Sp
+| json auto
+| split collection_time delim='.' extract 1 as collection_time_seconds
+| parseDate(collection_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as messageDate
+| split start_time delim='.' extract 1 as start_time_seconds
+| parseDate(start_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as startDate
+| ToLong((messageDate - startDate) / 1000) as DeltaSeconds
+| where DeltaSeconds > 1000
+| fields - messageDate, startDate, start_time_seconds, start_time, collection_time, collection_time_seconds
+
+
+*****or below
+_source="db-whoisactive" and _collector=**** and _sourcehost=*sl33* and region=*
+and collection_time and start_time
+and HADR and InitSessionContextWithUserSp
+| json auto
+| parse "collection_time\":\"*T*:*:*\"," as Timer1, Timer2, Timer3, Timer4
+//| where !(login_name matches "prod\\*")
+//| where !(login_name matches "*AUTHORITY*")
+| split collection_time delim='.' extract 1 as collection_time_seconds
+| parseDate(collection_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as messageDate
+| split start_time delim='.' extract 1 as start_time_seconds
+| parseDate(start_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as startDate
+| ToLong((messageDate - startDate) / 1000) as DeltaSeconds
+| where DeltaSeconds > 30
+| fields - messageDate, startDate, start_time_seconds, start_time, collection_time, collection_time_seconds
+| where Timer2 > 12 and Timer2 < 21
+| timeslice 1h
+| count by _timeslice, _sourceHost, Timer3
+
+*****or below
+(_source="db-whoisactive" and _collector=*prd*sl* and _sourcehost=*sl27* and region=*)| json auto
+| where database_name in ("ZINCMATURECOD_TRN_TAM_MSF_0") and session_id in ("336","98")
+
+*****
+(
+       _collector = saas.aws.mt.int.app.mscm.db.*
+)
+AND _source = "db-whoisactive"
+| json field=_raw "sql_text", "collection_time", "start_time"
+| (parseDate(collection_time, "yyyy-MM-dd'T'HH:mm:ss.SSS") - parseDate(start_time, "yyyy-MM-dd'T'HH:mm:ss.SSS")) as running_time_ms
+| where 1=1
+//sql_text
+//AND sql_text matches "*ISNULL*"
+| sort by Time DESC, blocking_session_id ASC, reads DESC, writes DESC, cpu DESC
+
+*****For TAM
+/* Whoisctive.log  as of 04/19/2024 12 MN to 4/21/2024 11:59 PM UTC */
+"PENNSTATEHEALTH_PRD_TAM_MSF_0"
+AND _sourcehost = "tam57-j"
+| json field=_raw "status" 
+| json field=_raw "collection_time" 
+| json field=_raw "host_name" | where %"host_name" in("tam-jb-203-2197","tam-jb-203-cade","tam-be-203-cf1a","tam-be-203-cf1a","tam-jb-203-e1c5")
+| json field=_raw "login_time" 
+| json field=_raw "start_time"
+| json field=_raw "reads" as read
+| number(read)
+| where tolong(read) >=50000
+| json field=_raw "session_id" | where %"session_id" in("251","309","531","696")
+| order by readsession_id,read
+| count by host_name,session_id,read,status,login_time,start_time,collection_time
+
+*****or below
+((((((("PENNSTATEHEALTH_PRD_TAM_MSF_0"
+AND _sourcehost = "tam-jb-203-2197" 
+)))))))
+| parse "\"businessclass\":\"*\"" as businessClass
+| parse "\"dataarea\":\"*\"" as dataarea
+| parse "\"total_duration_ms\":*" as Duration_ms
+| parse "\"name\":\"*\"" as name
+| parse "\"type\":\"*\"" as Type
+| parse "\"alert\":\"*\"" as DBAlert
+| parse "\"thread\":\"*\"" as Thread
+| parse "\"spid\":*}" as SPID
+| where SPID = "251"
+|count by SPID,dataarea,_sourcehost,businessclass,thread,type,DBAlert
+
+
+*****20250319
+(_source="db-whoisactive" and _collector=*mt.*tam* and _sourcehost=*tam61* and region=us-east-1) | json auto
+| where database_name in ("ZINCMATURECOD_TRN_TAM_MSF_0") | where sql_text <> "NULL"
+and session_id in ("183","349")
+| top 10 collection_time
+  , %"dd_hh:mm:ss.mss", session_id, sql_text, sql_command, login_name, blocking_session_id, cpu, reads, writes, physical_reads, query_plan, status, host_name, database_name, program_name, start_time
+| sort by %"dd_hh:mm:ss.mss" desc
+

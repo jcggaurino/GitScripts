@@ -1,0 +1,41 @@
+*****
+(_collector = saas.aws.mt.prd.app.*.db.*
+AND region = "us-east-1"
+and _sourcehost = "TAM01*"
+)
+//AND _sourcecategory = "os"
+| parse "InsertionStrings = {*};" as InsertionStrings
+| parse "Message = \"*\";" as Message
+| parse "Type = \"*\";" as Type
+| parse "TimeGenerated = \"*\";" as TimeGenerated
+| parse "SourceName = \"*\";" as SourceName
+| parse "Logfile = \"*\";" as Application
+| parse "Computer = \"*\";" as Computer
+| parse "CategoryString = \"*\";" as CatString
+| where (type = "Error" or type = "Warning")
+//| where (SourceName = "PerfOS")
+| count by Computer,SourceName | sort by Computer,SourceName ASC
+
+*****
+_source = "local-system"
+| parse field=_raw "Computer = \"*\"" as FQDN
+| parse field=_raw "EventCode = *;" as EventCode
+| parse field=_raw "Type = \"*\"" as Type
+| parse field=_raw "Logfile = \"*\"" as Logfile 
+| parse field=_raw "Message = \"*\"" as LogMessage
+| fields FQDN,EventCode,LogMessage,Logfile
+
+*****
+((((_collector=*prd***
+* "Login failed for user")
+)
+AND _source = "local-application"
+AND TAK_PRD)
+)
+| parse "Computer = \"*\";" as HostName
+| parse "Message = \"Login failed for user '*'. Reason: *. [CLIENT: *]\";" as User,Error,SourceIP 
+| formatDate(_messagetime, "yyyy-MM-dd") as Date
+| count by Date, HostName, User, Error
+|sort by _count
+
+*****

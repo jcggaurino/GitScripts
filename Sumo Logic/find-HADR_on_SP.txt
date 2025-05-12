@@ -1,0 +1,18 @@
+//HADR on On Aggregates tab, click "Column Chart"
+_source="db-whoisactive" and _collector=**** and _sourcehost=*sl07* and region=*
+and collection_time and start_time
+and HADR and InitSessionContextWithUserSp
+| json auto
+| parse "collection_time\":\"*T*:*:*\"," as Timer1, Timer2, Timer3, Timer4
+//| where !(login_name matches "prod\\*")
+//| where !(login_name matches "*AUTHORITY*")
+| split collection_time delim='.' extract 1 as collection_time_seconds
+| parseDate(collection_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as messageDate
+| split start_time delim='.' extract 1 as start_time_seconds
+| parseDate(start_time_seconds, "yyyy-MM-dd'T'HH:mm:ss") as startDate
+| ToLong((messageDate - startDate) / 1000) as DeltaSeconds
+| where DeltaSeconds > 30
+| fields - messageDate, startDate, start_time_seconds, start_time, collection_time, collection_time_seconds
+| where Timer2 > 12 and Timer2 < 21
+| timeslice 1h
+| count by _timeslice, _sourceHost, Timer3

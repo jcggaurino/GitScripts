@@ -1,0 +1,31 @@
+/* Get login failure aggregate information ... by Bhanu Mahesh Kakumanu
+Bhanu Mahesh Kakumanu
+Yesterday 2:04 PM
+
+/* Get login failure aggregate information from DBA collectors */
+_collector = saas.*.mt.*.*.db.*
+AND _source = local-application
+AND "login failed"
+
+/* parse the app name from the collector */
+| parse regex field=_collector "saas.aws.mt.*.app.(?<App>[^\.]+).db.*" nodrop
+
+/* Only for our team applications */
+| where app in("ssmgf")
+
+/* parse each individual errorlog message */
+| parse "Message = \"*\";\n\t" as Text nodrop
+
+/* Parse the login failure information */
+| parse field=Text "Cannot open database \"*\" requested by the login. The login failed.*" as database_name, host_name nodrop
+| parse field=Text "Login failed for user '*'. Reason: * [CLIENT: *]" as database_name, reason, host_name nodrop
+
+/* return the fields, sorted */
+| fields _sourcehost, database_name, host_name, reason, Text
+| sort _messageTime asc
+
+/* group the login information by _sourcehost, database_name using transactionize */
+/* NOTE: Because transactionize has a small 50MB memory, start by first (drastically) de-duplicating duplicate messages */
+| dedup by _sourcehost, database_name, host_name, reason, Text   
+| transactionize _sourcehost, database_name (merge _sourcehost takeFirst, database_name takeFirst, host_name takeDistinct, Text takeDistinct)
+| sort _sourcehost, database_name

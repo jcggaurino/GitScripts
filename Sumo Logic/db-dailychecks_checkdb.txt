@@ -1,0 +1,32 @@
+//_dataTier=All
+_source="db-dailychecks" and _collector = saas.aws.*.mt.tam.*.db.*
+//(
+//_collector = saas.aws.mt.*.app.tam.db.*
+//)
+//AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where
+1=1
+////DBCC
+AND (CheckName = "DBCC")
+
+
+
+//or
+
+
+
+//_dataTier=All
+_source="db-dailychecks" and _collector = saas.aws.*.mt.*.*.db.*
+| json auto field=_raw
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| trim (DatabaseName) AS DatabaseName
+| trim (LastGoodCHECKDBDate) AS LastGoodCHECKDBDate
+| trim (AppName) AS AppName
+| where
+1=1
+////DBCC
+AND (CheckName = "DBCC")
+//| json auto field=_raw
+//| checkname,ClusterNameCollectionDate,

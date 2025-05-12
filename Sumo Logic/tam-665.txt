@@ -1,0 +1,19 @@
+/* TAM DB - DBI SQL Exception 665 (Critical)
+Description: Detects db error 665, requires assistance from DBA.
+Run Book Wiki: https://wiki.infor.com/confluence/display/LE/TAM+MT+RunBook#TAMMTRunBook-TAMDB-DBISQLException665
+Alerts: DLG-LE-DEVOPS, LawsonMT Pager Duty, AlertsCriticalChannel, LMRKDevAlertGroup
+JIRAs: LEDO-1641
+Created: 2020/02/04
+Last Modified: 2021/09/27 - Updated metadata, updated enpoints, moved to TAM MT
+*/
+
+product=tam
+maturity=*prd // prd & preprd
+(host_type=jb or host_type=ws)
+_source=landmark-exception-log
+"DBISqlException: The operating system returned error 665"
+
+| parse "during a write at offset * in file '*'." as junk,file
+| parse regex field=file "\\(?<tenantID>\w+)_TAM" nodrop
+| count by farm, tenantid
+| fields farm, tenantid, _count

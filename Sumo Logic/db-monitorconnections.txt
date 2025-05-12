@@ -1,0 +1,23 @@
+Monitor Connections 
+
+(_collector = saas.aws.mt.prd.app.sce.db.sce01*)
+AND _source = "db-monitorconnections"
+| parse "* , [program_name] = * , [login_name] = * , [host_name] = * , [login_time] = * , [session_id] = * , [last_request_start_time] = * , [last_request_end_time] = * , [original_login_name] = * , [database_name] = * , [reads] = * , [writes] = * , [logical_reads] = * , [row_count] = * , [connect_time] = * , [num_reads] = * , [num_writes] = * , [last_read] = * , [last_write] = * , [sql_text] = * , [TSQL_DatabaseName] = * , [TSQL_ObjectName] = * , [status] = *" 
+as collection_time, program_name, login_name, host_name, login_time, session_id, last_request_start_time, last_request_end_time, original_login_name, database_name, reads, writes, logical_reads, row_count, connect_time, num_reads, num_writes, last_read, last_write, sql_text, TSQL_DatabaseName, TSQL_ObjectName, status
+| fields _sourcehost, program_name, login_name, host_name, login_time, session_id, last_request_start_time, last_request_end_time, original_login_name, database_name, reads, writes, logical_reads, row_count, connect_time, num_reads, num_writes, last_read, last_write, SQL_Text, TSQL_DatabaseName, TSQL_ObjectName, status, collection_time
+| sort _messageTime asc
+
+
+//Check if a successful login connection exists during this period.
+(_source="db-monitorconnections") and _sourcehost=*sl36* 
+AND "TAK_PRD_CSI_AIO_1"
+| parse "* , [program_name] = * , [login_name] = * , [host_name] = * , [login_time] = * , [session_id] = * , [last_request_start_time] = * , [last_request_end_time] = * , [original_login_name] = * , [database_name] = * , [reads] = * , [writes] = * , [logical_reads] = * , [row_count] = * , [connect_time] = * , [num_reads] = * , [num_writes] = * , [last_read] = * , [last_write] = * , [sql_text] = * , [TSQL_DatabaseName] = * , [TSQL_ObjectName] = * , [status] = *" 
+as collection_time, program_name, login_name, host_name, login_time, session_id, last_request_start_time, last_request_end_time, original_login_name, database_name, reads, writes, logical_reads, row_count, connect_time, num_reads, num_writes, last_read, last_write, sql_text, TSQL_DatabaseName, TSQL_ObjectName, status
+| count by collection_time,login_name
+
+*****
+(_source="db-monitorconnections") and _sourcehost=*sl36* 
+AND "TAK_PRD_CSI_AIO_1"
+| parse "* , [program_name] = * , [login_name] = * , [host_name] = * , [login_time] = * , [session_id] = * , [last_request_start_time] = * , [last_request_end_time] = * , [original_login_name] = * , [database_name] = * , [reads] = * , [writes] = * , [logical_reads] = * , [row_count] = * , [connect_time] = * , [num_reads] = * , [num_writes] = * , [last_read] = * , [last_write] = * , [sql_text] = * , [TSQL_DatabaseName] = * , [TSQL_ObjectName] = * , [status] = *" 
+as collection_time, program_name, login_name, host_name, login_time, session_id, last_request_start_time, last_request_end_time, original_login_name, database_name, reads, writes, logical_reads, row_count, connect_time, num_reads, num_writes, last_read, last_write, sql_text, TSQL_DatabaseName, TSQL_ObjectName, status
+| count by collection_time,login_name

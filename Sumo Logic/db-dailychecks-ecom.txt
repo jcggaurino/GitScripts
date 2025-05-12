@@ -1,0 +1,137 @@
+(
+_collector = saas.aws.mt.*.app.ECOM.db.*
+)
+AND _source = "db-dailychecks"
+| json auto
+| parse regex field=ServerName "(?<ClusterName>\w+)-\w"
+| where
+1=1
+////AGHealth ***** done via Monocle Dashboard *****
+AND !(CheckName = "AGHealth")
+////AGLog
+//AND !(CheckName = "AGLog")
+////AGProperties ***** done via Monocle Dashboard *****
+//AND !(CheckName = "AGProperties" AND (AvailabilityMode <> "SYNCHRONOUS_COMMIT" OR FailoverMode <> "Automatic"))
+////AutoClose
+//AND !(CheckName = "AutoClose")
+////AutoCreateStats
+//AND !(CheckName = "AutoCreateStats")
+////AutoGrowth
+//AND !(CheckName = "AutoGrowth")
+////AutoShrink
+//AND !(CheckName = "AutoShrink")
+////AutoUpdateStats
+//AND !(CheckName = "AutoUpdateStats")
+////BackupHistory
+//AND !(CheckName = "BackupHistory" AND if(isNull(BackupHistoryDays),0,BackupHistoryDays) >= 50)
+//AND !(CheckName = "BackupHistory")
+//BackupOnDisk
+AND !(CheckName = "BackupOnDisk" AND 
+	(
+	/* we know Add2AG removes backups when finished*/
+	if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_Add2AG\.(bak|trn)/ OR
+	/* we know RemoveTenant.ps1 removes backups when finished*/
+	if(isNull(PhysicalFileName), "", PhysicalFileName) matches /.+_FINAL_OFFLINE_BACK.*\.bak/ OR
+	/* we know dba_Cleanup cleans up files 6 days old, so we don't care about those */
+	if(!isNull(BackupStartDate), parseDate(CollectionDate, "yyyy-MM-dd'T'HH:mm:ss.SSS") - parseDate(BackupStartDate, "yyyy-MM-dd HH:mm:ss") > 518400000 /* 6 days, in ms */, false)
+	)
+)
+////ClusterHealth ***** done in Monocle Dashboard *****
+AND !(CheckName = "ClusterHealth")
+////Collation
+//AND !(CheckName = "Collation" AND CollationName = "Latin1_General_CI_AS")
+//AND (CheckName = "Collation")
+////CompatibilityLevel
+//AND !(CheckName = "CompatibilityLevel")
+////DatabaseGrowth
+//AND !(CheckName = "DatabaseGrowth")
+////DatabaseLimit
+//AND !(CheckName = "DatabaseLimit")
+////DatabaseNotInAOAG
+//AND !(CheckName = "DatabaseNotInAOAG")
+////DBCC
+//AND !(CheckName = "DBCC")
+////DBMail
+//AND !(CheckName = "DBMail")
+////DBOwner
+//AND !(CheckName = "DBOwner")
+////DBState
+//AND !(CheckName = "DBState")
+////DisabledAlerts
+//AND !(CheckName = "DisabledAlerts")
+////DisabledJobs
+AND !(CheckName = "DisabledJobs" AND
+	(
+	ObjectName in
+		(
+			"dba_AddJackDBDatasourcesToRole",
+			"dba_CaptureData",
+			"dba_Cleanup_IOBOX", /* fleet-wide ION BOD cleanup job */
+			"dba_Collect_Connection_Information",
+			"dba_CompressDatabases",
+			"dba_DailyReport",
+			"dba_EmailLoginFailure",
+			"dba_ExportToFlatFile",
+			"dba_GetCompressionEstimates",
+			"dba_ObjectCompression",
+			"ECOMdba_MonitorLongRunningQueries_v2.1"
+		) 
+	)
+)
+////DisabledOperators
+//AND !(CheckName = "DisabledOperators")
+////ExtraSAUser
+//AND !(CheckName = "ExtraSAUser")
+////FileGroup
+//AND !(CheckName = "FileGroup")
+////FileLocation
+//AND !(CheckName = "FileLocation")
+////JobHistory
+//AND !(CheckName = "JobHistory")
+////JobOwner
+//AND !(CheckName = "JobOwner")
+////LoginLog
+//AND !(CheckName = "LoginLog")
+////MissingIndex
+AND !(CheckName = "MissingIndex")
+////MultiUser
+//AND !(CheckName = "MultiUser")
+    //Operators
+    AND !(
+        CheckName = "Operators" AND
+        (
+            (
+                ServerName matches "ecom*" AND 
+                (
+                    (OperatorName = "DBA Group" AND OperatorEmail = "dlg-rhythm_ecom-hosting-dba@infor.com")
+                )
+            )
+        )
+    )
+////OrphanedUsers
+//AND !(CheckName = "OrphanedUsers")
+////OverdueProcesses
+AND !(CheckName = "OverdueProcesses" AND
+	JobName in ("dba_SQLStart","dba_SyncBackupFolderFull")
+	)
+////OversizedDatabase
+//AND !(CheckName = "OversizedDatabase")
+////PageVerify
+//AND !(CheckName = "PageVerify")
+////RecoveryModel
+//AND !(CheckName = "RecoveryModel")
+////SAUser
+//AND !(CheckName = "SAUser")
+////Snapshots
+AND !(CheckName = "Snapshots"
+//AND formatDate(CollectionDate, "yyyy-MM-dd") < formatDate(now(), "yyyy-MM-dd")
+AND (
+		(SnapshotType = "FULL" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 0) OR
+		(SnapshotType = "DIFF" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 4) OR
+		(SnapshotType = "LOG" AND if(isNull(SnapshotCount),0,SnapshotCount) >= 100)
+	)
+)
+////TimeOffset
+AND !(CheckName = "TimeOffset" AND Offset = "00:00:00")
+| fields CollectionDate, ServerName, CheckName, _raw
+| sort ServerName asc, CheckName asc, CollectionDate asc

@@ -1,0 +1,23 @@
+//App Log
+_collector=saas.aws.mt.prd.*.app.m3ce.M3PRDEUC1* AND "LELY_TST" AND ("ERROR" OR "FAIL" OR "WARN")
+| logreduce
+
+
+//DB Counts per Cluster
+((_collector=saas.aws.mt.prd.*.app.infra.dbsizepertenant AND _source=dbsize_mt*
+AND "account:infor-prd"
+//AND "region:ap-southeast-2"
+AND M3*))
+//| parse "database:*_M3C_*_" as Tenant_ID,TypeX
+//| parse "database:*_M3C_Fou" as Tenant_ID
+| parse ",cluster:*,database" as M3cluster
+| parse ",database:*,tenant" as TypeX
+| if (isBlank(size), "0", size) as size
+| if (isBlank(tenant_id), "UnTagged", tenant_id) as tenant_id
+| where M3cluster matches "*m3*" //| where database matches "*Fou*"
+| num(size) as size
+| (size) as sizeinMB | timeslice 1d
+| max(sizeinMB) as MB group by cluster, tenant_id, TypeX | sort by cluster asc, tenant_id asc, TypeX
+
+
+//
